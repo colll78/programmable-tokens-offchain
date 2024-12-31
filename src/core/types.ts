@@ -5,7 +5,9 @@ import {
   MintingPolicy,
   OutRef,
   PolicyId,
+  Redeemer,
   Script,
+  ScriptHash,
   SpendingValidator,
   TxSignBuilder,
   Unit,
@@ -128,15 +130,30 @@ export type RegisterProgrammableTokenResult = {
   }
 };
 
+type RedeemerBuilderGeneral = {
+  makeRedeemer: (inputIndices?: bigint[], referenceInputIndices?: bigint[], outputIndices?: bigint[], redeemerIndices?: bigint[], withdrawalIndices?: bigint[]) => Redeemer;
+  inputs?: UTxO[];
+  referenceInputs?: UTxO[];
+  outputs?: UTxO[]; 
+  redeemers? : Redeemer[];
+  withdrawals?: ScriptHash[];
+} 
+
+export type UTxOSelectionCriteria = (utxo: UTxO) => boolean;
 export type TransferProgrammableTokenConfig = {
   assetsToTransfer: Assets;
   recipient: Address;
   datum?: CborHex;
   directoryNodePolicyId: PolicyId;
+  protocolParamPolicyId: PolicyId;
+  refScriptIdMap: Map<PolicyId, Unit>
+  transferPolicyRedeemers: Map<PolicyId, UTxOSelectionCriteria>
+  additionalRequiredRefInputs: UTxO[];
   scripts: {
     transferLogicScript: WithdrawalValidator;
     programmableLogicBase: SpendingValidator;
     programmableLogicGlobal: WithdrawalValidator;
+    directoryNodeSpend: SpendingValidator;
   };
 };
 

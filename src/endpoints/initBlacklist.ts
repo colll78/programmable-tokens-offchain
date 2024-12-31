@@ -12,6 +12,7 @@ import {
     TxSignBuilder,
     Constr,
     TransactionError,
+    UTxO,
   } from "@lucid-evolution/lucid";
   import { DIRECTORY_HEAD_KEY, DIRECTORY_TAIL_KEY } from "../core/constants.js";
   import { DirectoryNodeDatum } from "../core/contract.types.js";
@@ -31,7 +32,7 @@ import {
             throw new Error("Payment credential is undefined");
         }
     
-        const initUTxO = walletUtxos.find((utxo) => {
+        const initUTxO = walletUtxos.find((utxo : UTxO) => {
         return (
             utxo.txHash == config.initBlacklistUTxO.txHash &&
             utxo.outputIndex == config.initBlacklistUTxO.outputIndex
@@ -46,7 +47,7 @@ import {
         const nodePolicy: MintingPolicy = config.scripts.blacklistNodeMint;
         const nodePolicyId = mintingPolicyToId(nodePolicy);
 
-        const headNodeDatum = Data.to(["", ""]);
+        const headNodeDatum = Data.to(["", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"]);
     
         const blacklistMintRedeemer = Data.to(new Constr(0, []));
         

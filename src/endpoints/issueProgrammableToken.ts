@@ -119,7 +119,7 @@ export const registerProgrammableToken = (
 
     const programmableToken = toUnit(
       programmableTokenPolicyId,
-      fromText(config.programmableTokenName),
+      config.programmableTokenName,
     );
 
     const programmableAssetsToMint: Assets = {
@@ -133,6 +133,8 @@ export const registerProgrammableToken = (
     const insertNodeRedeemer: Redeemer = Data.to(new Constr(1, [programmableTokenPolicyId]));
     const insertedOnDirectoryNodeDatumNext = insertedOnDirectoryNodeDatum[1]
     console.log("Issue programmable token, DirectoryNodeCS: " + directoryPolicyId);
+    //const delegationRewards = yield* Effect.promise(() => lucid.delegationAt(programmableTokenMintLogicRewardAddress));
+    //console.log("Delegation Amount: " + delegationRewards.rewards.toString())
     const tx = yield* lucid
       .newTx()
       .readFrom([protocolParamUTxO])
@@ -162,8 +164,7 @@ export const registerProgrammableToken = (
       )
       .withdraw(
         programmableTokenMintLogicRewardAddress,
-        0n,
-        Data.void(),
+        0n
       )      
       .attach.MintingPolicy(directoryNodeMinting)
       .attach.MintingPolicy(programmableTokenMinting)

@@ -13,6 +13,8 @@ import {
   Lucid,
   LucidEvolution,
   Network,
+  PolicyId,
+  Redeemer,
   scriptHashToCredential,
   SpendingValidator,
   Unit,
@@ -21,6 +23,7 @@ import {
 } from "@lucid-evolution/lucid";
 import { AddressD, Value } from "../contract.types.js";
 import { Either, ReadableUTxO, Result } from "../types.js";
+import { map } from "effect/Option";
 
 export function ok<T>(x: T): Result<T> {
   return {
@@ -383,4 +386,100 @@ export const mintingMetadataFromAsset = async (assetId: Unit, projectId: string)
     .then((r) => r.json())
   // initial_mint_tx_hash is the transaction hash where the asset was minted 
   return transactionDetailsUtxos['onchain_metadata']
+}
+
+
+export const utxosAtAddressWithPolicyId = async (
+  lucid: LucidEvolution,
+  address: Address,
+  policyId : PolicyId
+) => {
+  const utxosAtAddr = await lucid.utxosAt(address)
+  return utxosAtAddr.filter((utxo) => {
+    const units = Object.keys(utxo.assets);
+    const policies = Array.from(
+      new Set(
+        units
+          .filter((unit) => unit !== "lovelace")
+          .map((unit) => unit.slice(0, 56)),
+      ),
+    );
+    return policies.includes(policyId)
+  });
+}
+
+export const sortUTxOs = (utxos: UTxO[]) : UTxO[] => {
+  return utxos.sort((utxoA, utxoB) => {
+    if (utxoA.txHash > utxoB.txHash) {
+      return 1;
+    } else if (utxoA.txHash < utxoB.txHash) {
+      return -1;
+    } else {
+      return utxoA.outputIndex > utxoB.outputIndex ? 1 : -1;
+    }
+  });
+}
+
+
+export const makeFreezeRedeemer = (
+  selectedRefIndices: bigint[],
+  ) : Redeemer => {
+    const red = selectedRefIndices.map((index) => new Constr (0, [index]))
+    console.log("Freeze Redeemer: ", red)
+    return Data.to( red );
+}
+
+export interface MakeTransferRedeemerParams {
+  referenceInputs: UTxO[];
+  inputs?: UTxO[];
+  outputs?: UTxO[];
+  inputSelectionCriteria?: (input: UTxO) => boolean;
+  refInputSelectionCriteria: (input: UTxO) => boolean;
+  outputSelectionCriteria?: (output: UTxO) => boolean;
+  makeRedeemer: (selectedRefIndices: bigint[], selectedInputIndices?: bigint[], selectedOutputIndices?: bigint[]) => Redeemer;
+}
+
+export const makeTransferRedeemer = ({
+  referenceInputs,
+  inputs,
+  outputs,
+  inputSelectionCriteria,
+  refInputSelectionCriteria,
+  outputSelectionCriteria,
+  makeRedeemer,
+}: MakeTransferRedeemerParams) : Redeemer => {
+  const sortedRefInputs = sortUTxOs(referenceInputs);
+  const indicesOfSortedRefInputs: [UTxO, bigint][] = sortedRefInputs.map((input) => [input, BigInt(referenceInputs.findIndex((inputToFind) => input == inputToFind))]);
+  
+  let selectedInputIdxs : any = undefined;
+  if (inputSelectionCriteria && inputs) {
+    const sortedInputs = sortUTxOs(inputs);
+    const indicesOfSortedInputs : [UTxO, bigint][] = sortedInputs.map((input) => [input, BigInt(inputs.findIndex((inputToFind) => input == inputToFind))]);
+    let selectedInputIndices : bigint[] = []
+    for(const [input, index] of indicesOfSortedInputs){
+      if(inputSelectionCriteria(input)){
+        selectedInputIndices.push(BigInt(index))
+      }
+    }
+    selectedInputIdxs = selectedInputIndices.length > 0 ? selectedInputIndices : undefined;
+  }
+
+  let selectedOutputIndices : any = undefined;
+  if (outputSelectionCriteria && outputs) {
+    let selectedOutputIdxs : bigint[] = []
+    for (const [index, utxo] of outputs.entries()) {
+      if (outputSelectionCriteria(utxo)) {
+        selectedOutputIdxs.push(BigInt(index))
+      }
+    }
+    selectedOutputIndices = selectedOutputIdxs.length > 0 ? selectedOutputIdxs : undefined;
+  }
+
+  let selectedRefIndices : bigint[] = []
+  for(const [refInput, index] of indicesOfSortedRefInputs){
+    if(refInputSelectionCriteria(refInput)){
+      selectedRefIndices.push(BigInt(index))
+    }
+  }
+  return makeRedeemer(selectedRefIndices, selectedInputIdxs, selectedOutputIndices);
 }

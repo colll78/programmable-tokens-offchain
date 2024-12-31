@@ -1,9 +1,8 @@
 import { expect, test } from "vitest";
 import { Effect } from "effect";
 import { LucidContext, makeEmulatorContext, makeLucidContext } from "./service/lucidContext.js";
-import { deployMultipleValidators } from "./deployRefScriptsTest.js";
-import { Address, Credential, applyParamsToScript, DeployProtocolParams, deployProtocolParams, MintingPolicy, paymentCredentialOf, PolicyId, ProtocolParametersConfig, registerProgrammableToken, RegisterProgrammableTokenConfig, SpendingValidator, UTxO, WithdrawalValidator, Validator, mintingPolicyToId, initBlacklist, initDirectory, InitializeDirectoryConfig, unixTimeToSlot, scriptFromNative, Constr, validatorToScriptHash, RegisterProgrammableTokenResult } from "../src/index.js";
-import { alwaysFailsBytes, blacklistSpendingBytes, directoryNodeMintingBytes, directoryNodeSpendingBytes, freezeAndSeizeTransferBytes, permissionedMintingBytes, programmableLogicBaseBytes, programmableLogicGlobalBytes, programmableTokenMintingBytes, protocolParamsMintingBytes } from "./common/constants.js";
+import { Address, Credential, applyParamsToScript, DeployProtocolParams, deployProtocolParams, MintingPolicy, paymentCredentialOf, PolicyId, ProtocolParametersConfig, registerProgrammableToken, RegisterProgrammableTokenConfig, SpendingValidator, UTxO, WithdrawalValidator, Validator, mintingPolicyToId, initBlacklist, initDirectory, InitializeDirectoryConfig, unixTimeToSlot, scriptFromNative, Constr, validatorToScriptHash, RegisterProgrammableTokenResult, TransferProgrammableTokenConfig, fromText, Assets, toUnit, Unit, validatorToAddress, transferProgrammableToken, validatorToRewardAddress, Redeemer, utxosAtAddressWithPolicyId, UTxOSelectionCriteria, ScriptHash } from "../src/index.js";
+import { alwaysFailsBytes, alwaysFailsValidator, blacklistSpendingBytes, directoryNodeMintingBytes, directoryNodeSpendingBytes, freezeAndSeizeTransferBytes, permissionedMintingBytes, programmableLogicBaseBytes, programmableLogicGlobalBytes, programmableTokenMintingBytes, protocolParamsMintingBytes } from "./common/constants.js";
 
 test<LucidContext>("Test 10 - Deploy Script", async () => {
     const  { lucid, users, emulator } = await Effect.runPromise(makeEmulatorContext());
@@ -11,8 +10,10 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
     const operatorAccount1UTxOs = await lucid.wallet().getUtxos();
     const initDirectoryUTxO : UTxO = operatorAccount1UTxOs[0];
     lucid.selectWallet.fromSeed(users.operatorAccount2.seedPhrase);
+    const operatorAccount2Address: Address = await lucid.wallet().address();
     const operatorAccount2UTxOs : UTxO[] = await lucid.wallet().getUtxos();
     const initProtocolParamsUTxO : UTxO = operatorAccount2UTxOs[0];
+    const network = lucid.config().network;
 
     const paramConfig : ProtocolParametersConfig = {
         initDirectoryUTxO: initDirectoryUTxO,
@@ -44,25 +45,6 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
             );
         }
         console.log("Deployed protocol parameters with tx hash: " + paramTxHash);
-        //const initBlacklistTx = yield* initBlacklist(lucid, initBlacklistParams);
-        // const freezeAndSeizeTransfer : WithdrawalValidator = {
-        //     type: "PlutusV3",
-        //     script: applyParamsToScript(freezeAndSeizeTransferBytes, [operator1CredHash])
-        // }
-        // const registerProgTokenConfig : RegisterProgrammableTokenConfig = {
-        //     programmableTokenName: "USD",
-        //     mintAmount: BigInt(100),
-        //     scripts: {
-        //         programmableBaseSpending: programmableLogicBase,
-        //         directoryNodeMint: directoryNodeMintScript,
-        //         directorySpend: directoryNodeSpend,
-        //         programmableTokenMintingBytes: permissionedMintingBytes,
-        //         transferLogicScript: freezeAndSeizeTransferBytes,
-        //         issuerLogicScript: permissionedScript,
-        //         programmableTokenMintingLogic: permissionedScript
-        //     }
-        // }
-        // const mintProgrammableTokenResult = yield* registerProgrammableToken(lucid, registerProgTokenConfig);
         const result = paramResult;
         return result;
     });
@@ -76,6 +58,7 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
     const directoryNodeMintScript : MintingPolicy = paramResult.scripts.directoryNodeMinting;
     const directoryNodePolicyId : PolicyId = mintingPolicyToId(directoryNodeMintScript);
     const programmableLogicBase : SpendingValidator = paramResult.scripts.programmableLogicBase;
+    const plbScriptHash : ScriptHash = validatorToScriptHash(programmableLogicBase)
     const programmableLogicBaseCred = new Constr(1, [validatorToScriptHash(programmableLogicBase)]);
     const protocolParamsMP : MintingPolicy = paramResult.scripts.protocolParametersMinting;
     const directoryNodeSpend : SpendingValidator = {
@@ -83,10 +66,10 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
             script: applyParamsToScript(directoryNodeSpendingBytes, [protocolParamsPolicyId])
     } 
 
-    const permissionedScript : WithdrawalValidator = {
-        type: "PlutusV3",
-        script: applyParamsToScript(permissionedMintingBytes, [operator1CredHash])
-    }
+    // const permissionedScript : WithdrawalValidator = {
+    //     type: "PlutusV3",
+    //     script: applyParamsToScript(permissionedMintingBytes, [operator1CredHash])
+    // }
     
     lucid.selectWallet.fromSeed(users.operatorAccount3.seedPhrase);
     const operatorAccount3Address: Address = await lucid.wallet().address()
@@ -101,10 +84,11 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
         type: "PlutusV3",
         script: applyParamsToScript(blacklistSpendingBytes, [permissionedPolicyId3])
     }
+    const blacklistScriptHash : ScriptHash = validatorToScriptHash(blacklistSpending);
+    const blacklistAddress = validatorToAddress(network!, blacklistSpending);
     const operatorAccount3UTxOs = await lucid.wallet().getUtxos();
     const initBlacklistUTxO : UTxO = operatorAccount3UTxOs[0];
-
-
+    const blacklistMintPolicyId : PolicyId = mintingPolicyToId(permissionedScript3);
     // Initialize Blacklist
     const initBlacklistParams = {
         initBlacklistUTxO: initBlacklistUTxO,
@@ -136,11 +120,6 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
     });
     const initBlacklistResult = await Effect.runPromise(initBlacklistProgram);
     expect(initBlacklistResult).toBeDefined();
-
-    const directoryNodeA : SpendingValidator = {
-        type: "PlutusV3",
-        script: applyParamsToScript(directoryNodeSpendingBytes, [protocolParamsPolicyId])
-    } 
 
     // Initialize Programmable Token Directory
     console.log("Init Directory");
@@ -178,8 +157,7 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
 
 
     // Register a new Programmable Token
-    const network = lucid.config().network;
-    const currTime = emulator!.now();
+    //const currTime = emulator!.now();
     const progTokenMintLogicPermission = scriptFromNative({
         type: "all",
         scripts: [
@@ -187,6 +165,8 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
         ],
       });
     const progTokenMintLogicPermissionScriptHash = validatorToScriptHash(progTokenMintLogicPermission);
+    const programmableTokenMintLogicRewardAddress = validatorToRewardAddress(network!, progTokenMintLogicPermission);
+
     const progTokenMintLogicCred = new Constr(1, [progTokenMintLogicPermissionScriptHash]);
     // PAsData PCredential :--> PAsData PCurrencySymbol :--> PAsData PCredential :--> PScriptContext :--> PUnit)
     // programmableLogicBase nodeCS mintingLogicCred
@@ -194,18 +174,94 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
         type: "PlutusV3",
         script: applyParamsToScript(programmableTokenMintingBytes, [programmableLogicBaseCred, directoryNodePolicyId, progTokenMintLogicCred])
     }
+    const programmableUSDPolicy = mintingPolicyToId(programmableTokenMinting);
+    const progTokenName = "USD"
+    const programmableTokenName = fromText(progTokenName);
+    const programmableUSDUnit = toUnit(programmableUSDPolicy, programmableTokenName);
     const freezeAndSeizeTransfer : WithdrawalValidator = {
         type: "PlutusV3",
-        script: applyParamsToScript(freezeAndSeizeTransferBytes, [operator3CredHash])
+        script: applyParamsToScript(freezeAndSeizeTransferBytes, [blacklistMintPolicyId])
     }
+    const freezeAndSeizeRewardAddress = validatorToRewardAddress(network!, freezeAndSeizeTransfer);
+    const freezeAndSeizeScriptHash = validatorToScriptHash(freezeAndSeizeTransfer);
     const programmableBaseGlobal : WithdrawalValidator = {
         type: "PlutusV3",
         script: applyParamsToScript(programmableLogicGlobalBytes, [protocolParamsPolicyId])
     }
+    const programmableBaseGlobalRewardAddress = validatorToRewardAddress(network!, programmableBaseGlobal);
     console.log("Register Programmable Token");
     const insertProgrammableTokenProgram = Effect.gen(function* ($) {
+        lucid.selectWallet.fromSeed(users.operatorAccount3.seedPhrase);
+        const registerTokenMintingLogicTx = yield* lucid
+            .newTx()
+            .register.Stake(programmableTokenMintLogicRewardAddress)
+            .attach.Script(progTokenMintLogicPermission)
+            .completeProgram();
+        const registerTokenMintingLogicTxSigned = yield* Effect.promise(() => 
+            registerTokenMintingLogicTx.sign.withWallet().complete()
+        );
+        const registerTokenMintingLogicTxHash = yield* Effect.promise(() =>
+            registerTokenMintingLogicTxSigned.submit()
+        );
+        let registerTokenMintingLogicExists: boolean;
+        if (emulator) {
+            registerTokenMintingLogicExists = yield* Effect.promise(() =>
+                emulator.awaitTx(registerTokenMintingLogicTxHash)
+            );
+        } else {
+            registerTokenMintingLogicExists = yield* Effect.promise(() =>
+                lucid.awaitTx(registerTokenMintingLogicTxHash)
+            );
+        }
+
+        const registerFreezeTx = yield* lucid
+            .newTx()
+            .register.Stake(freezeAndSeizeRewardAddress)
+            .attach.Script(freezeAndSeizeTransfer)
+            .completeProgram();
+
+        const registerFreezeTxSigned = yield* Effect.promise(() => 
+            registerFreezeTx.sign.withWallet().complete()
+        );
+        const registerFreezeTxHash = yield* Effect.promise(() =>
+            registerFreezeTxSigned.submit()
+        );
+        let registerFreezeExists: boolean;
+        if (emulator) {
+            registerFreezeExists = yield* Effect.promise(() =>
+                emulator.awaitTx(registerFreezeTxHash)
+            );
+        } else {
+            registerFreezeExists = yield* Effect.promise(() =>
+                lucid.awaitTx(registerFreezeTxHash)
+            );
+        }
+
+        const registerProgGlobalTx = yield* lucid
+            .newTx()
+            .register.Stake(programmableBaseGlobalRewardAddress)
+            .attach.Script(programmableBaseGlobal)
+            .completeProgram();
+
+        const registerProgGlobalTxSigned = yield* Effect.promise(() => 
+            registerProgGlobalTx.sign.withWallet().complete()
+        );
+        const registerProgGlobalTxHash = yield* Effect.promise(() =>
+            registerProgGlobalTxSigned.submit()
+        );
+        let registerProgGlobalExists: boolean;
+        if (emulator) {
+            registerProgGlobalExists = yield* Effect.promise(() =>
+                emulator.awaitTx(registerProgGlobalTxHash)
+            );
+        } else {
+            registerProgGlobalExists = yield* Effect.promise(() =>
+                lucid.awaitTx(registerProgGlobalTxHash)
+            );
+        }
+
         const registerProgTokenConfig : RegisterProgrammableTokenConfig = {
-            programmableTokenName: "USD",
+            programmableTokenName: programmableTokenName,
             mintAmount: BigInt(100),
             protocolParamPolicyId: protocolParamsPolicyId,
             scripts: {
@@ -220,15 +276,115 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
             }
         }
         const mintProgrammableTokenResult : RegisterProgrammableTokenResult = yield* registerProgrammableToken(lucid, registerProgTokenConfig);
-        
+        const mintProgrammableTxSigned = yield* Effect.promise(() =>
+            mintProgrammableTokenResult.tx.sign.withWallet().complete()
+        );
+        const mintProgrammableTxHash = yield* Effect.promise(() =>
+            mintProgrammableTxSigned.submit()
+        );
+        let mintProgrammableExists: boolean;
+        if (emulator) {
+            mintProgrammableExists = yield* Effect.promise(() =>
+                emulator.awaitTx(mintProgrammableTxHash)
+            );
+        } else {
+            mintProgrammableExists = yield* Effect.promise(() =>
+                lucid.awaitTx(mintProgrammableTxHash)
+            );
+        }
+
         return mintProgrammableTokenResult;
     });
     const mintProgrammableTokenResult : RegisterProgrammableTokenResult = await Effect.runPromise(insertProgrammableTokenProgram);
     expect(mintProgrammableTokenResult).toBeDefined();
+
+    console.log("ProgrammableLogicBase Script Hash: " + plbScriptHash);
+    console.log("ProgrammableBaseGlobal Script Hash: " + validatorToScriptHash(programmableBaseGlobal));
+    console.log("Freeze and Seize Transfer Script Hash: " + freezeAndSeizeScriptHash);
+    console.log("Programmable Token USD Policy Id: " + programmableUSDPolicy);
+    console.log("Blacklist Node policy id: " + blacklistMintPolicyId);
+    console.log("Blacklist Script Hash: " + blacklistScriptHash);
+    console.log("Protocol Parameters Policy Id: " + protocolParamsPolicyId);
+
+    //Transfer Programmable Tokens
+    console.log("Transfer Programmable Tokens");
+    const transferProgrammableTokens = Effect.gen(function* ($) {
+        lucid.selectWallet.fromSeed(users.operatorAccount3.seedPhrase);
+        const refTokenIdPolicyId = mintingPolicyToId(progTokenMintLogicPermission);
+        const refToken = toUnit(refTokenIdPolicyId, fromText(""));
+        const tx = yield* lucid
+            .newTx()
+            .mintAssets({[refToken]: 1n})
+            .pay.ToAddressWithData(
+              validatorToAddress(network!, alwaysFailsValidator),
+              undefined,
+              {[refToken]: 1n},
+              freezeAndSeizeTransfer
+            )
+            .attach.MintingPolicy(progTokenMintLogicPermission)
+            .completeProgram()
+        const transferRefScriptTxSigned = yield* Effect.promise(() =>
+            tx.sign.withWallet().complete()
+        );
+        const transferRefTxHash = yield* Effect.promise(() =>
+            transferRefScriptTxSigned.submit()
+        );
+        let initTransferRefScript: boolean;
+        if (emulator) {
+            initTransferRefScript = yield* Effect.promise(() =>
+                emulator.awaitTx(transferRefTxHash)
+            );
+        } else {
+            initTransferRefScript = yield* Effect.promise(() =>
+                lucid.awaitTx(transferRefTxHash)
+            );
+        }
+
+        const tokenToTransfer: Assets = {
+            [programmableUSDUnit]: 50n,
+          };
+        const refTokenMap = new Map<PolicyId, Unit>();
+        refTokenMap.set(programmableUSDPolicy, refToken);
+
+        const transferPolicyMap = new Map<PolicyId, UTxOSelectionCriteria>();
+        const blacklistNodeUTxOs = yield* Effect.promise(() => utxosAtAddressWithPolicyId(lucid, blacklistAddress, blacklistMintPolicyId));
+        transferPolicyMap.set(programmableUSDPolicy, (utxo: UTxO) => blacklistNodeUTxOs.includes(utxo));
+        //transferPolicyMap.set(programmableUSDPolicy, Data.to(0n));
+        const transferConfig : TransferProgrammableTokenConfig = {
+            assetsToTransfer: tokenToTransfer,
+            recipient: operatorAccount2Address,
+            directoryNodePolicyId: directoryNodePolicyId,
+            protocolParamPolicyId: protocolParamsPolicyId,
+            refScriptIdMap: refTokenMap,
+            transferPolicyRedeemers: transferPolicyMap,
+            additionalRequiredRefInputs: [blacklistNodeUTxOs[0]],
+            scripts: {
+                transferLogicScript: freezeAndSeizeTransfer,
+                programmableLogicBase: programmableLogicBase,
+                programmableLogicGlobal: programmableBaseGlobal,
+                directoryNodeSpend: directoryNodeSpend
+            }
+        }
+        const transferProgrammableTokenResult = yield* transferProgrammableToken(lucid, transferConfig);
+        const transferProgrammableTokenSigned = yield* Effect.promise(() =>
+            transferProgrammableTokenResult.sign.withWallet().complete()
+        );
+        const transferTxHash = yield* Effect.promise(() =>
+            transferProgrammableTokenSigned.submit()
+        );
+        let transferTxResult: boolean;
+        if (emulator) {
+            transferTxResult = yield* Effect.promise(() =>
+                emulator.awaitTx(transferRefTxHash)
+            );
+        } else {
+            transferTxResult = yield* Effect.promise(() =>
+                lucid.awaitTx(transferRefTxHash)
+            );
+        }
+        return transferTxHash
+    });
     
-    // // Transfer Programmable Tokens
-    // console.log("Transfer Programmable Tokens");
-    // const transferProgrammableTokens = Effect.gen(function* ($) {
-        
-    // });
+    const transferResult = await Effect.runPromise(transferProgrammableTokens);
+    expect(transferResult).toBeDefined();
 });

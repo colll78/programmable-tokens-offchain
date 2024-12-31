@@ -12,6 +12,7 @@ import {
     TxSignBuilder,
     Constr,
     TransactionError,
+    UTxO,
   } from "@lucid-evolution/lucid";
   import { DIRECTORY_HEAD_KEY, DIRECTORY_TAIL_KEY } from "../core/constants.js";
   import { DirectoryNodeDatum } from "../core/contract.types.js";
@@ -23,14 +24,14 @@ import {
     config: InitializeDirectoryConfig,
   ): Effect.Effect<TxSignBuilder, TransactionError, never> => 
     Effect.gen(function* () {
-      const network = lucid.config().network;
+      const network = lucid.config().network!;
 
       const walletUtxos = yield* Effect.promise(() => lucid.wallet().getUtxos());
     
       if (!walletUtxos.length)
         throw new Error("No utxos in wallet");
     
-      const initUTxO = walletUtxos.find((utxo) => {
+      const initUTxO = walletUtxos.find((utxo : UTxO) => {
         return (
           utxo.txHash == config.initDirectoryUTxO.txHash &&
           utxo.outputIndex == config.initDirectoryUTxO.outputIndex
