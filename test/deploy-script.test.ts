@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { Effect } from "effect";
 import { LucidContext, makeEmulatorContext, makeLucidContext } from "./service/lucidContext.js";
-import { Address, Credential, applyParamsToScript, DeployProtocolParams, deployProtocolParams, MintingPolicy, paymentCredentialOf, PolicyId, ProtocolParametersConfig, registerProgrammableToken, RegisterProgrammableTokenConfig, SpendingValidator, UTxO, WithdrawalValidator, Validator, mintingPolicyToId, initBlacklist, initDirectory, InitializeDirectoryConfig, unixTimeToSlot, scriptFromNative, Constr, validatorToScriptHash, RegisterProgrammableTokenResult, TransferProgrammableTokenConfig, fromText, Assets, toUnit, Unit, validatorToAddress, transferProgrammableToken, validatorToRewardAddress, Redeemer, utxosAtAddressWithPolicyId, UTxOSelectionCriteria, ScriptHash } from "../src/index.js";
+import { Address, Credential, applyParamsToScript, DeployProtocolParams, deployProtocolParams, MintingPolicy, paymentCredentialOf, PolicyId, ProtocolParametersConfig, registerProgrammableToken, RegisterProgrammableTokenConfig, SpendingValidator, UTxO, WithdrawalValidator, Validator, mintingPolicyToId, initBlacklist, initDirectory, InitializeDirectoryConfig, unixTimeToSlot, scriptFromNative, Constr, validatorToScriptHash, RegisterProgrammableTokenResult, TransferProgrammableTokenConfig, fromText, Assets, toUnit, Unit, validatorToAddress, transferProgrammableToken, validatorToRewardAddress, Redeemer, utxosAtAddressWithPolicyId, UTxOSelectionCriteria, ScriptHash, DeployRefScriptsConfig, deployRefScripts } from "../src/index.js";
 import { alwaysFailsBytes, alwaysFailsValidator, blacklistSpendingBytes, directoryNodeMintingBytes, directoryNodeSpendingBytes, freezeAndSeizeTransferBytes, permissionedMintingBytes, programmableLogicBaseBytes, programmableLogicGlobalBytes, programmableTokenMintingBytes, protocolParamsMintingBytes } from "./common/constants.js";
 
 test<LucidContext>("Test 10 - Deploy Script", async () => {
@@ -306,6 +306,20 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
     console.log("Blacklist Script Hash: " + blacklistScriptHash);
     console.log("Protocol Parameters Policy Id: " + protocolParamsPolicyId);
 
+    const deployProgrammableLogicGlobalRefScript = Effect.gen(function* ($) {
+        const deployRefParams : DeployRefScriptsConfig = 
+            {
+                script: programmableBaseGlobal,
+                name: "ProgrammableBaseGlobal",
+                alwaysFails: alwaysFailsValidator,
+                currentTime: BigInt(emulator!.now())
+            }
+        const deployRefScriptResult = yield* Effect.promise(() => deployRefScripts(lucid, deployRefParams));
+        return deployRefScriptResult;
+    });
+    const deployProgGlobalRef = await Effect.runPromise(deployProgrammableLogicGlobalRefScript);
+    expect(deployProgGlobalRef).toBeDefined();
+    
     //Transfer Programmable Tokens
     console.log("Transfer Programmable Tokens");
     const transferProgrammableTokens = Effect.gen(function* ($) {

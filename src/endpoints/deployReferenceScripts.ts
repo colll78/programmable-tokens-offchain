@@ -16,22 +16,16 @@ import {
   export const deployRefScripts = async (
     lucid: LucidEvolution,
     config: DeployRefScriptsConfig,
-  ): Promise<Result<Deploy>> => {
+  ): Promise<Deploy> => {
     const network = lucid.config().network;
     const walletUtxos = await lucid.wallet().getUtxos();
   
     if (!walletUtxos.length)
-      return { type: "error", error: new Error("No utxos in wallet") };
+      throw new Error("No utxos in wallet")
   
-    const script: Script = {
-      type: "PlutusV3",
-      script: config.script,
-    };
+    const script: Script = config.script
   
-    const alwaysFailsValidator: SpendingValidator = {
-      type: "PlutusV3",
-      script: config.alwaysFails,
-    };
+    const alwaysFailsValidator: SpendingValidator = config.alwaysFails
   
     const alwaysFailsAddr = validatorToAddress(network!,alwaysFailsValidator);
   
@@ -39,7 +33,7 @@ import {
       .paymentCredential?.hash;
   
     if (!deployKey)
-      return { type: "error", error: new Error("missing PubKeyHash") };
+      throw new Error("missing PubKeyHash")
   
     const deployPolicy = scriptFromNative({
       type: "all",
@@ -54,33 +48,30 @@ import {
     });
   
     const deployPolicyId = mintingPolicyToId(deployPolicy);
-  
-    try {
-      const tx = await lucid
-        .newTx()
-        .attach.MintingPolicy(deployPolicy)
-        .mintAssets({
-          [toUnit(deployPolicyId, fromText(config.name))]: 1n,
-        })
-        .pay.ToAddressWithData(
-          alwaysFailsAddr,
-          { kind : "inline", value : Data.void()},
-          { [toUnit(deployPolicyId, fromText(config.name))]: 1n },
-          script
-        )
-        .validTo(Number(config.currentTime) + 29 * 60 * 1000)
-        .complete();
-  
-      return {
-        type: "ok",
-        data: {
-          tx: tx,
-          deployPolicyId: deployPolicyId,
-        },
-      };
-    } catch (error) {
-      if (error instanceof Error) return { type: "error", error: error };
-  
-      return { type: "error", error: new Error(`${JSON.stringify(error)}`) };
-    }
-  };
+
+    const tx = await lucid
+      .newTx()
+      .attach.MintingPolicy(deployPolicy)
+      .mintAssets({
+        [toUnit(deployPolicyId, fromText(config.name))]: 1n,
+      })
+      .pay.ToAddressWithData(
+        alwaysFailsAddr,
+        { kind : "inline", value : Data.void()},
+        { [toUnit(deployPolicyId, fromText(config.name))]: 1n },
+        script
+      )
+      .validTo(Number(config.currentTime) + 29 * 60 * 1000)
+      .complete();
+    
+    const txSigned = await tx.sign.withWallet().complete();
+    
+    const txHash = await txSigned.submit();
+    
+    await lucid.awaitTx(txHash);
+    
+    return {
+        tx: tx,
+        deployPolicyId: deployPolicyId,
+      }
+}

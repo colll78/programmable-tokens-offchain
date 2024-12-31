@@ -424,7 +424,7 @@ export const sortUTxOs = (utxos: UTxO[]) : UTxO[] => {
 export const makeFreezeRedeemer = (
   selectedRefIndices: bigint[],
   ) : Redeemer => {
-    const red = selectedRefIndices.map((index) => new Constr (0, [index]))
+    const red = selectedRefIndices.concat(selectedRefIndices.concat(selectedRefIndices)).map((index) => new Constr (0, [index]))
     console.log("Freeze Redeemer: ", red)
     return Data.to( red );
 }

@@ -36,9 +36,9 @@ export type ReadableUTxO<T> = {
 };
 
 export type DeployRefScriptsConfig = {
-  script: CborHex;
+  script: Script;
   name: string;
-  alwaysFails: CborHex;
+  alwaysFails: SpendingValidator;
   currentTime: BigInt;
 };
 

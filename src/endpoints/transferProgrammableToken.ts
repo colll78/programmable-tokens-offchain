@@ -188,8 +188,9 @@ export const transferProgrammableToken = (
           refInputSelectionCriteria: selectionCriteria,
           makeRedeemer: makeFreezeRedeemer
         }
-      const redeemer : Redeemer = makeTransferRedeemer(transferRedeemerParams)
-      txBuilder.withdraw(rewardAddress, 0n, redeemer);
+      const _redeemer : Redeemer = makeTransferRedeemer(transferRedeemerParams)
+   
+      txBuilder.withdraw(rewardAddress, 0n, _redeemer);
     }); 
 
     const tx = yield* txBuilder.completeProgram();
