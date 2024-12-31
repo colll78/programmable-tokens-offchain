@@ -23,16 +23,16 @@ export const makeEmulatorContext = () =>
     Effect.gen(function* ($) {
         const users = {
             dappProvider: yield* Effect.sync(() =>
-                generateEmulatorAccount({ lovelace: BigInt(1_000_000_000) })
+                generateEmulatorAccount({ lovelace: BigInt(1_000_000_000_000) })
             ),
             operatorAccount1: yield* Effect.sync(() =>
-                generateEmulatorAccount({ lovelace: BigInt(1_000_000_000) })
+                generateEmulatorAccount({ lovelace: BigInt(1_000_000_000_000) })
             ),
             operatorAccount2: yield* Effect.sync(() =>
-                generateEmulatorAccount({ lovelace: BigInt(1_000_000_000) })
+                generateEmulatorAccount({ lovelace: BigInt(1_000_000_000_000) })
             ),
             operatorAccount3: yield* Effect.sync(() =>
-                generateEmulatorAccount({ lovelace: BigInt(1_000_000_000) })
+                generateEmulatorAccount({ lovelace: BigInt(1_000_000_000_000) })
             ),
         };
 
@@ -40,7 +40,7 @@ export const makeEmulatorContext = () =>
             [users.dappProvider, users.operatorAccount1, users.operatorAccount2, users.operatorAccount3],
             {
                 ...PROTOCOL_PARAMETERS_DEFAULT,
-                maxTxSize: 210000,
+                maxTxSize: 2100000,
             },
         );
 

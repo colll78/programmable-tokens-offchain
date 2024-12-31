@@ -360,6 +360,18 @@ export function sumUtxoAssets(utxos: UTxO[]): Assets {
     .reduce((acc, assets) => addAssets(acc, assets), {});
 }
 
+export function filterPolicyFromAssets(assets: Assets, policyId: PolicyId): Assets {
+  return Object.fromEntries(
+    Object.entries(assets).filter(([key]) => key.startsWith(policyId)),
+  );
+}
+
+export function filterForeignPoliciesFromAssets(assets: Assets, policyIds: PolicyId[]): Assets {
+  return Object.fromEntries(
+    Object.entries(assets).filter(([key]) => policyIds.includes(key.slice(0, 56))),
+  );
+}
+
 /** Remove the intersection of a & b asset quantities from a
  * @param a assets to be removed from
  * @param b assets to remove
@@ -368,7 +380,7 @@ export function sumUtxoAssets(utxos: UTxO[]): Assets {
  * b = {[x] : 3n, [y] : 15n, [z] : 4n}
  * remove(a, b) = {[x] : 2n}
  */
-export function remove(a: Assets, b: Assets): Assets {
+export function removeAssets(a: Assets, b: Assets): Assets {
   for (const [key, value] of Object.entries(b)) {
     if (Object.hasOwn(a, key)) {
       if (a[key] < value) delete a[key];

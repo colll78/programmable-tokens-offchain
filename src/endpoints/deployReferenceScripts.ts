@@ -19,7 +19,7 @@ import {
   ): Promise<Deploy> => {
     const network = lucid.config().network;
     const walletUtxos = await lucid.wallet().getUtxos();
-  
+    
     if (!walletUtxos.length)
       throw new Error("No utxos in wallet")
   
@@ -49,29 +49,32 @@ import {
   
     const deployPolicyId = mintingPolicyToId(deployPolicy);
 
-    const tx = await lucid
-      .newTx()
-      .attach.MintingPolicy(deployPolicy)
-      .mintAssets({
-        [toUnit(deployPolicyId, fromText(config.name))]: 1n,
-      })
-      .pay.ToAddressWithData(
-        alwaysFailsAddr,
-        { kind : "inline", value : Data.void()},
-        { [toUnit(deployPolicyId, fromText(config.name))]: 1n },
-        script
-      )
-      .validTo(Number(config.currentTime) + 29 * 60 * 1000)
-      .complete();
+    try {    
+      const tx = await lucid
+        .newTx()
+        .attach.MintingPolicy(deployPolicy)
+        .mintAssets({
+          [toUnit(deployPolicyId, fromText(config.name))]: 1n,
+        })
+        .pay.ToAddressWithData(
+          alwaysFailsAddr,
+          { kind: "inline", value: Data.void() },
+          { [toUnit(deployPolicyId, fromText(config.name))]: 1n },
+          script
+        )
+        .validTo(Number(config.currentTime) + 29 * 60 * 1000)
+        .complete();
+
+      const txSigned = await tx.sign.withWallet().complete();    
+      const txHash = await txSigned.submit();
+      await lucid.awaitTx(txHash);
     
-    const txSigned = await tx.sign.withWallet().complete();
-    
-    const txHash = await txSigned.submit();
-    
-    await lucid.awaitTx(txHash);
-    
-    return {
+      return {
         tx: tx,
         deployPolicyId: deployPolicyId,
-      }
+      };
+    } catch (error) {
+      console.error("Error during transaction deployment:", error);
+      throw error;
+    }
 }

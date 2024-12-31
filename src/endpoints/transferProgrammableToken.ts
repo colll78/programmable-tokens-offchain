@@ -24,12 +24,13 @@ import {
     RewardAddress,
     Redeemer,
     validatorToScriptHash,
+    Assets,
   } from "@lucid-evolution/lucid";
 import { DIRECTORY_HEAD_KEY, DIRECTORY_TAIL_KEY, PROTOCOL_PARAMS_TOKEN_NAME } from "../core/constants.js";
 import { DirectoryNodeDatum } from "../core/contract.types.js";
 import { Result, TransferProgrammableTokenConfig } from "../core/types.js";
 import { Effect } from "effect";
-import { makeFreezeRedeemer, makeTransferRedeemer, MakeTransferRedeemerParams, selectUtxos } from "../core/utils/utils.js";
+import { filterForeignPoliciesFromAssets, makeFreezeRedeemer, makeTransferRedeemer, MakeTransferRedeemerParams, remove, removeAssets, selectUtxos, sumUtxoAssets } from "../core/utils/utils.js";
 import { getDirectoryNodeToInsertOn } from "./utils.js";
 
 export const transferProgrammableToken = (
@@ -47,7 +48,6 @@ export const transferProgrammableToken = (
     const transferRewardAddress = validatorToRewardAddress(network!, transferLogicScript);
     const protocolParamsUnit = toUnit(config.protocolParamPolicyId, PROTOCOL_PARAMS_TOKEN_NAME);
     const protocolParamUTxO : UTxO = yield* Effect.promise(() => lucid.utxoByUnit(protocolParamsUnit));
-    console.log("protocolParamUTxO", protocolParamUTxO)
     const directoryNodeSpendScript = config.scripts.directoryNodeSpend;
     const directoryAddress = validatorToAddress(network!, directoryNodeSpendScript);
 
@@ -112,7 +112,10 @@ export const transferProgrammableToken = (
         })
       )
     );
-    //const transferLogicRefScriptUTxOs : UTxO[] = programmablePoliciesToTransfer.map((keyCS) => yield* Effect.promise(() => lucid.utxoByUnit(config.refScriptIdMap.get(keyCS!))));
+    const totalProgrammableTokenValueSpent : Assets = filterForeignPoliciesFromAssets(sumUtxoAssets(spendingProgrammableUTxOs), policiesToTransfer);
+    const programmableTokenChange : Assets = removeAssets(totalProgrammableTokenValueSpent, config.assetsToTransfer);
+    // console.log("totalProgrammableTokenValueSpent", totalProgrammableTokenValueSpent)
+    // console.log("programmableTokenChange", programmableTokenChange)
     const transferLogicRefScriptPairs: [PolicyId, UTxO][] = yield* Effect.promise(() =>
       Promise.all(
         programmablePoliciesToTransfer.map(async (keyCS) => {
@@ -127,6 +130,9 @@ export const transferProgrammableToken = (
     const programmablePoliciesWithdrawalInfo : [PolicyId, RewardAddress][] = 
       programmablePoliciesToTransfer.map((policyId) =>
         {
+          if (transferLogicRefScriptMap.get(policyId)!.scriptRef === undefined) {
+            throw new Error("Transfer policy reference UTxO does not have a script reference");
+          }
           let associatedTransferLogicScript = validatorToScriptHash(transferLogicRefScriptMap.get(policyId)!.scriptRef!);
           return [policyId, credentialToRewardAddress(network!, scriptHashToCredential(associatedTransferLogicScript))]
         });
@@ -174,8 +180,9 @@ export const transferProgrammableToken = (
       .readFrom(sortedRefUTxOs)
       .collectFrom(spendingProgrammableUTxOs, Data.void())
       .pay.ToContract(recipientProgrammableTokenAddress, undefined, config.assetsToTransfer)
+      .pay.ToContract(userProgrammableTokenAddress, undefined, programmableTokenChange)
       //.attach.Script(transferLogicScript)
-      .attach.WithdrawalValidator(programmableLogicGlobal)
+      //.attach.WithdrawalValidator(programmableLogicGlobal)
       .attach.SpendingValidator(programmableLogicBase)
       .withdraw(programmableLogicRewardAddress, 0n, globalLogicRedeemer)
       .addSigner(userAddress)

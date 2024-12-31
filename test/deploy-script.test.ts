@@ -65,11 +65,6 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
             type: "PlutusV3",
             script: applyParamsToScript(directoryNodeSpendingBytes, [protocolParamsPolicyId])
     } 
-
-    // const permissionedScript : WithdrawalValidator = {
-    //     type: "PlutusV3",
-    //     script: applyParamsToScript(permissionedMintingBytes, [operator1CredHash])
-    // }
     
     lucid.selectWallet.fromSeed(users.operatorAccount3.seedPhrase);
     const operatorAccount3Address: Address = await lucid.wallet().address()
@@ -157,7 +152,6 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
 
 
     // Register a new Programmable Token
-    //const currTime = emulator!.now();
     const progTokenMintLogicPermission = scriptFromNative({
         type: "all",
         scripts: [
@@ -180,7 +174,7 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
     const programmableUSDUnit = toUnit(programmableUSDPolicy, programmableTokenName);
     const freezeAndSeizeTransfer : WithdrawalValidator = {
         type: "PlutusV3",
-        script: applyParamsToScript(freezeAndSeizeTransferBytes, [blacklistMintPolicyId])
+        script: applyParamsToScript(freezeAndSeizeTransferBytes, [programmableLogicBaseCred, blacklistMintPolicyId])
     }
     const freezeAndSeizeRewardAddress = validatorToRewardAddress(network!, freezeAndSeizeTransfer);
     const freezeAndSeizeScriptHash = validatorToScriptHash(freezeAndSeizeTransfer);
@@ -298,14 +292,16 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
     const mintProgrammableTokenResult : RegisterProgrammableTokenResult = await Effect.runPromise(insertProgrammableTokenProgram);
     expect(mintProgrammableTokenResult).toBeDefined();
 
-    console.log("ProgrammableLogicBase Script Hash: " + plbScriptHash);
+    console.log("\nProgrammableLogicBase Script Hash: " + plbScriptHash);
     console.log("ProgrammableBaseGlobal Script Hash: " + validatorToScriptHash(programmableBaseGlobal));
     console.log("Freeze and Seize Transfer Script Hash: " + freezeAndSeizeScriptHash);
     console.log("Programmable Token USD Policy Id: " + programmableUSDPolicy);
     console.log("Blacklist Node policy id: " + blacklistMintPolicyId);
     console.log("Blacklist Script Hash: " + blacklistScriptHash);
     console.log("Protocol Parameters Policy Id: " + protocolParamsPolicyId);
+    console.log("TransferRefNFTPolicy: " + mintingPolicyToId(progTokenMintLogicPermission) + "\n");
 
+    const currTime = BigInt(emulator!.now());
     const deployProgrammableLogicGlobalRefScript = Effect.gen(function* ($) {
         const deployRefParams : DeployRefScriptsConfig = 
             {
@@ -320,6 +316,9 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
     const deployProgGlobalRef = await Effect.runPromise(deployProgrammableLogicGlobalRefScript);
     expect(deployProgGlobalRef).toBeDefined();
     
+    const programmableBaseGlobalRefScriptNFT = toUnit(deployProgGlobalRef.deployPolicyId, fromText("ProgrammableBaseGlobal"))
+    const programmableBaseGlobalRefUTxO : UTxO = await lucid.utxoByUnit(programmableBaseGlobalRefScriptNFT);
+    console.log("ProgrammableBaseGlobal Ref Script UTxO: ", programmableBaseGlobalRefUTxO);
     //Transfer Programmable Tokens
     console.log("Transfer Programmable Tokens");
     const transferProgrammableTokens = Effect.gen(function* ($) {
@@ -371,7 +370,7 @@ test<LucidContext>("Test 10 - Deploy Script", async () => {
             protocolParamPolicyId: protocolParamsPolicyId,
             refScriptIdMap: refTokenMap,
             transferPolicyRedeemers: transferPolicyMap,
-            additionalRequiredRefInputs: [blacklistNodeUTxOs[0]],
+            additionalRequiredRefInputs: [blacklistNodeUTxOs[0], programmableBaseGlobalRefUTxO],
             scripts: {
                 transferLogicScript: freezeAndSeizeTransfer,
                 programmableLogicBase: programmableLogicBase,
